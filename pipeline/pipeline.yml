@@ -1,0 +1,8 @@
+name: bruin-init
+schedule: daily
+start_date: "2023-01-01"
+catchup: false
+
+default_connections:
+    duckdb: duckdb-default
+    postgres: pg-local
