@@ -1,0 +1,15 @@
+name: raw.bada_fuel_chart
+type: duckdb.seed
+
+parameters:
+  path: ../seeds/bada_fuel_chart.csv
+
+columns:
+  - name: aircraft
+    type: string
+  - name: tas_ms
+    type: float
+  - name: fl
+    type: integer
+  - name: fuel_flow_kg_s
+    type: float
