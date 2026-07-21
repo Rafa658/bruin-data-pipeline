@@ -57,19 +57,21 @@ marts/                 # Final analytical models
 
 1. **Clone the repository**
 ```bash
-git clone <repository-url>
-cd bruin-kpi16
+git clone git@github.com:Rafa658/bruin-data-pipeline.git
+cd bruin-data-pipeline
 ```
 
 2. **Install Bruin CLI**
 ```bash
-# macOS
-brew install anomalyco/tap/bruin
-
-# Or download from https://bruin.io
+curl -LsSf https://getbruin.com/install/cli | sh
 ```
 
-3. **Configure environment**
+4. **Install DuckDB**
+```bash
+curl https://install.duckdb.org | sh
+```
+
+5. **Configure environment**
 ```bash
 # Copy configuration template
 cp .bruin.yml.example .bruin.yml
