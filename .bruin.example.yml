@@ -1,0 +1,14 @@
+default_environment: default
+environments:
+  default:
+    connections:
+        duckdb:
+            - name: duckdb-default
+              path: /path/to/bruin.duckdb
+        postgres:
+            - name: pg-local
+              username: postgres
+              password: "your_password"
+              host: localhost
+              port: 5432
+              database: aviation_kpi
