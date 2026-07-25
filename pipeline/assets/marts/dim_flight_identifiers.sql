@@ -13,26 +13,28 @@ depends:
 
 columns:
   - name: id
-    description: Unique flight identifier
+    description: "Flight natural key (flight_date + flight_id callsign). Non-unique: a callsign can operate distinct flights on the same date; the radar join is disambiguated by the TMA time window."
     checks:
       - name: not_null
-  - name: departure_airport
+  - name: adep
     description: ICAO code of departure airport
     checks:
       - name: not_null
-  - name: arrival_airport
+  - name: ades
     description: ICAO code of destination airport
     checks:
       - name: not_null
-  - name: flight_id
-    description: Flight identification number
+  - name: fltid
+    description: Flight callsign (ICAO airline code + number)
     checks:
       - name: not_null
-  - name: aircraft_type
+  - name: aircraft
     description: Aircraft type code (ICAO aircraft type designator)
     checks:
       - name: not_null
-  - name: flight_date
+  - name: reg
+    description: Aircraft tail registration
+  - name: date
     description: Flight date
     checks:
       - name: not_null
@@ -45,6 +47,7 @@ select
     arrival_airport as ades,
     flight_id as fltid,
     aircraft_type as aircraft,
+    aircraft_registration as reg,
     flight_date as date
 from intermediate.int_kpi08_filtered_by_forecast_conditions
 where 1=1
