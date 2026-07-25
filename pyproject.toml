@@ -1,0 +1,18 @@
+[project]
+name = "bruin-kpi16"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Rafael Silva de Oliveira",email = "rafael@Mac-mini-de-Rafael.local"}
+]
+requires-python = ">=3.14"
+dependencies = [
+    "bruin (>=0.3.3,<0.4.0)",
+    "ingestr (>=1.0.70,<2.0.0)",
+    "duckdb (>=1.5.4,<2.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
