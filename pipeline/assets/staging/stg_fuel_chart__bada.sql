@@ -23,6 +23,6 @@ select
     aircraft,
     tas_ms,
     cast(fl as int) as fl,
-    cast(fuel_flow_kg_s as double) as flow
+    cast(fuel_flow_kg_s as double) as fuel_flow_kg_s
 from raw.bada_fuel_chart
 where 1=1

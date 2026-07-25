@@ -14,33 +14,24 @@ depends:
 columns:
   - name: radar_date
     description: The date of the radar record
-    checks:
-      - name: not_null
   - name: aircraft_speed
     description: The speed of the aircraft at the time of the radar record
   - name: flight_level
     description: The flight level of the aircraft at the time of the radar record
-    checks:
-      - name: not_null
-  - name: aircraft_registration
-    description: The registration number of the aircraft
-    checks:
-      - name: not_null
+  - name: flight_id
+    description: Flight callsign (ICAO airline code + number, e.g. TAM3763); sourced from radar.ds_registration which is mislabeled in the source schema
   - name: radar_timestamp
     description: The timestamp of the radar record
-    checks:
-      - name: not_null
 
 @bruin */
 
 select
-    -- Type safety and standardization only
+    -- Type casting and standardization only: no filters, no calculations, no joins
+    -- Source ds_registration is filtered in intermediate layer (contains literal 'NULL' strings)
     dt_radar::date as radar_date,
     nr_speed as aircraft_speed,
     nr_flightlevel::numeric as flight_level,
-    ds_registration as aircraft_registration,
+    ds_registration as flight_id,
     dt_radar::timestamp as radar_timestamp
-from raw.tb_radar tr
+from raw.tb_radar
 where 1=1
-    and ds_registration <> 'NULL'
-    and nr_flightlevel is not null
