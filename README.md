@@ -18,32 +18,44 @@ This project implements a production-grade data pipeline for analyzing aviation 
 ### Data Pipeline Layers
 
 ```
-raw/                    # Raw data ingestion
-├── kpi08/             # Flight KPI data (Parquet files)
-└── tb_radar/          # Radar point data
+raw/                    # Raw data ingestion (1:1 with source, no transforms)
+├── kpi08.sql                  # Flight KPI data (Parquet view)
+├── tb_radar.sql               # Radar point data (Parquet view)
+└── bada_fuel_chart.asset.yml  # BADA fuel chart (seed)
 
-staging/               # Data preparation & type safety  
-├── stg_kpi08__odin.sql        # KPI data type casting
-├── stg_radar__odin.sql        # Radar data type casting
-└── stg_fuel_chart__bada.sql   # Fuel chart data
+staging/               # Type-cast + rename only (no filters, no calc, no joins)
+├── stg_kpi08__odin.sql          # KPI type casting (+aircraft_registration)
+├── stg_radar__odin.sql          # Radar type casting (ds_registration -> flight_id)
+└── stg_fuel_chart__bada.sql     # Fuel chart type casting
 
-intermediate/           # Business logic & transformations
-├── int_kpi08_filtered_by_forecast_conditions.sql  # Business rules & filtering
-└── int_radar_filtered_by_flights_at_tma.sql       # TMA radar filtering
+intermediate/          # Business logic: IDs, imputation, filters, joins
+├── int_kpi08__enriched.sql                       # ID gen, setor imputation, transit_tma (no filter)
+├── int_kpi08_filtered_by_forecast_conditions.sql # Business-rule filters (dep enriched)
+├── int_radar_filtered_by_flights_at_tma.sql      # Radar<->flight join + TMA time window
+└── int_fuel__by_flight_level.sql                 # BADA fuel_flow per radar point (exact FL match)
 
-marts/                 # Final analytical models
-├── dim_flight_identifiers.sql              # Flight dimension
-├── dim_flight_operational_attributes.sql    # Operational metrics
-├── dim_tma_occupation.sql                  # TMA occupation over time
-└── fct_elapsed_time_by_fl.sql              # Flight performance facts
+marts/                 # Final analytical models (dim_ descriptive, fct_ measures)
+├── dim_flight_identifiers.sql           # Flight dimension (+reg, unique PK)
+├── dim_flight_operational_attributes.sql # Operational attrs (descriptive only, unique PK)
+├── fct_flight_transit_metrics.sql       # transito/desimp/kpi08/transit_tma (FK check)
+├── fct_tma_occupation.sql               # TMA occupation over time (renamed from dim_)
+└── fct_elapsed_time_by_fl.sql           # Flight performance + fuel_flow (FK + non-empty checks)
 ```
+
+### Layer contract
+- **raw** — 1:1 with external source. View. Source column names. Docs only.
+- **staging** — type-cast + rename to snake_case. **No filters, no calc, no joins.** View.
+- **intermediate** — ID gen, imputation, derived fields, business filters, cross-source joins. Table.
+- **marts** — `dim_*` descriptive only + `unique` PK; `fct_*` measures + `not_null` FK + custom referential-integrity check. Table.
 
 ### Key Transformations
 
-- **Setor Imputation**: Calculates 6-sector TMA division from bearing angles (0°, 60°, 120°, 180°, 240°, 300°)
-- **TMA Filtering**: Identifies radar points within 100NM cylinder during flight transit
-- **KPI Calculation**: `transit_tma = desimp + kpi08` (reference time + additional delay)
-- **Flight Level Analysis**: Computes rate of climb/descent between radar points
+- **Flight composite key**: `(flight_date, flight_id)` where `flight_id` is the callsign (kpi08 `fltid`, radar `ds_registration` which is mislabeled in the source). Radar points are children of a flight, ordered by `dt_radar`.
+- **Setor Imputation**: Calculates 6-sector TMA division from bearing angles (0°, 60°, 120°, 180°, 240°, 300) in `int_kpi08__enriched`.
+- **TMA Filtering**: `int_radar_filtered_by_flights_at_tma` joins radar to flights on `(date, callsign)` and confines points to `[entry_time, landing_time]`.
+- **KPI Calculation**: `transit_tma = desimp + kpi08` (reference time + additional delay) in `int_kpi08__enriched`.
+- **Flight Level Analysis**: `fct_elapsed_time_by_fl` computes rate of climb/descent between radar points, partitioned by flight.
+- **Fuel Burn**: `int_fuel__by_flight_level` joins BADA fuel_flow at exact `(aircraft_type, fl)`; LEFT-joined into `fct_elapsed_time_by_fl` (interim exact match; interpolation planned).
 
 ## 🚀 Getting Started
 
@@ -166,26 +178,30 @@ default_connections:
 ### Dimension Tables
 
 **dim_flight_identifiers**
-- Flight metadata (airports, aircraft, dates)
-- Primary key: `id` (date + flight_id)
+- Flight metadata (airports, aircraft, registration, dates)
+- Primary key: `id` (flight_date + callsign), `unique` check
 
 **dim_flight_operational_attributes**
-- Operational metrics (runway, bearing, sector, transit times)
-- TMA sector division (0, 60, 120, 180, 240, 300)
-- KPI08: Additional transit time above reference
-
-**dim_tma_occupation**
-- Time-series of aircraft count in TMA
-- Validity periods (dt_valid_from, dt_valid_to)
-- Current occupation status
+- Operational descriptors (runway, bearing, sector, entry/landing times)
+- Primary key: `id`, `unique` check
+- Measures (transito/desimp/kpi08/transit_tma) live in `fct_flight_transit_metrics`
 
 ### Fact Tables
 
+**fct_flight_transit_metrics**
+- Per-flight transit measures: transito, desimp, kpi08, transit_tma
+- FK to `dim_flight_identifiers.id` (custom referential-integrity check)
+
+**fct_tma_occupation**
+- Time-series of aircraft count in TMA (renamed from `dim_tma_occupation`)
+- Validity periods (dt_valid_from, dt_valid_to), `unique` on dt_valid_from
+- Current occupation status
+
 **fct_elapsed_time_by_fl**
-- Flight performance metrics
-- Rate of climb/descent between radar points
-- Time elapsed between radar observations
-- Filters: Flights with 100+ radar points only
+- Flight performance metrics: rate of climb/descent, elapsed time between radar points
+- Fuel flow (BADA) LEFT-joined per radar point; NULL when no exact (aircraft_type, fl) match
+- Filters: flights with 100+ radar points only
+- FK + non-empty custom checks
 
 ## 🧪 Data Quality
 
