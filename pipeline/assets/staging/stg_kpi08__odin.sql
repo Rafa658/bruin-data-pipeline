@@ -32,6 +32,10 @@ columns:
     description: Type of aircraft
     checks:
       - name: not_null
+  - name: aircraft_registration
+    description: Aircraft tail registration (ICAO reg, e.g. PR-ABC); sourced from kpi08.reg
+    checks:
+      - name: not_null
   - name: runway_validated
     description: Validated runway
   - name: bearing
@@ -56,12 +60,13 @@ columns:
 @bruin */
 
 select
-    -- Type safety and standardization only
+    -- Type casting and standardization only: no filters, no calculations, no joins
     aldt::date as flight_date,
     fltid as flight_id,
     adep::varchar as departure_airport,
     ades::varchar as arrival_airport,
     type as aircraft_type,
+    reg as aircraft_registration,
     drwy_validado as runway_validated,
     bear as bearing,
     setor as setor_raw,
