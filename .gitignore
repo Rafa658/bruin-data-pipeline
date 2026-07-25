@@ -1,3 +1,21 @@
+# AI Artifacts
+.agents/
+.opencode/
+graphify-out/
+skills-lock.json
+
+# Python Artifacts
+__pycache__/
+*.py[cod]
+
+# Bruin Artifacts
+bruin-docs.html
+bruin.duckdb
+.bruin.yml
 logs/
+logs/runs
+logs/*.log
+
+# Related to Paper
 seeds/
 paper.pdf
