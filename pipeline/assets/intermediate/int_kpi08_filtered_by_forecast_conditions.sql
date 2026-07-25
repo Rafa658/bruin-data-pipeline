@@ -9,11 +9,11 @@ materialization:
   type: table
 
 depends:
-  - staging.stg_kpi08__odin
+  - intermediate.int_kpi08__enriched
 
 columns:
   - name: id
-    description: Unique flight identifier (date + flight_id)
+    description: Unique flight identifier (flight_date + flight_id)
     checks:
       - name: not_null
   - name: flight_date
@@ -21,7 +21,7 @@ columns:
     checks:
       - name: not_null
   - name: flight_id
-    description: Flight ID
+    description: Flight callsign (ICAO airline code + number)
     checks:
       - name: not_null
   - name: departure_airport
@@ -36,6 +36,8 @@ columns:
     description: Type of aircraft
     checks:
       - name: not_null
+  - name: aircraft_registration
+    description: Aircraft tail registration
   - name: runway_validated
     description: Validated runway
   - name: bearing
@@ -81,45 +83,17 @@ columns:
 
 @bruin */
 
-with
-setor_imputation as (
-    select
-        -- ID generation (business logic)
-        flight_date || flight_id as id,
-        flight_date,
-        flight_id,
-        departure_airport,
-        arrival_airport,
-        aircraft_type,
-        runway_validated,
-        bearing,
-        -- Mathematical calculation + imputation strategy
-        case
-            when setor_raw is not null then cast(setor_raw as integer)::varchar
-            when bearing is not null then cast(floor(bearing/60) * 60 as integer)::varchar
-            else null
-        end as setor,
-        entry_time,
-        cylinder_radius,
-        landing_time,
-        transito_raw as transito,
-        desimp_raw as desimp,
-        kpi08_interval as kpi08,
-        -- Business calculation: transit_tma = desimp + kpi08
-        desimp_raw + kpi08_interval as transit_tma
-    from staging.stg_kpi08__odin
-),
-filter_by_business_rules as (
-  select
+select
     id,
+    flight_date,
+    flight_id,
     departure_airport,
     arrival_airport,
-    flight_id,
     aircraft_type,
+    aircraft_registration,
     runway_validated,
     bearing,
     setor,
-    flight_date,
     entry_time,
     cylinder_radius,
     landing_time,
@@ -127,39 +101,20 @@ filter_by_business_rules as (
     desimp,
     kpi08,
     transit_tma
-  from setor_imputation
-  where 1=1
-  -- Business rule: flights arrived at SBGR
-  and arrival_airport = 'SBGR'
-  -- Business rule: terminal maneuvering area cylinder radius is 100 nautical miles
-  and cylinder_radius = 100
-  -- Data quality: exclude flights without calculated kpi08
-  and kpi08 is not null
-  -- Data quality: exclude flights without setor
-  and setor is not null
-  -- Business rule: filter departures from airports in Brazil
-  and departure_airport like 'SB%'
-  -- Business rule: filter for most common aircraft types in Brazilian civil aviation
-  and aircraft_type in (
-    'A320', 'A321', 'B738', 'B38M',
-    'A20N', 'A319', 'A21N', 'E195', 'B737', 'B734'
-  )
-)
-select
-  id,
-  departure_airport,
-  arrival_airport,
-  flight_id,
-  aircraft_type,
-  runway_validated,
-  bearing,
-  setor,
-  flight_date,
-  entry_time,
-  cylinder_radius,
-  landing_time,
-  transito,
-  desimp,
-  kpi08,
-  transit_tma
-from filter_by_business_rules
+from intermediate.int_kpi08__enriched
+where 1=1
+    -- Business rule: flights arrived at SBGR
+    and arrival_airport = 'SBGR'
+    -- Business rule: terminal maneuvering area cylinder radius is 100 nautical miles
+    and cylinder_radius = 100
+    -- Data quality: exclude flights without calculated kpi08
+    and kpi08 is not null
+    -- Data quality: exclude flights without setor
+    and setor is not null
+    -- Business rule: filter departures from airports in Brazil
+    and departure_airport like 'SB%'
+    -- Business rule: filter for most common aircraft types in Brazilian civil aviation
+    and aircraft_type in (
+        'A320', 'A321', 'B738', 'B38M',
+        'A20N', 'A319', 'A21N', 'E195', 'B737', 'B734'
+    )
