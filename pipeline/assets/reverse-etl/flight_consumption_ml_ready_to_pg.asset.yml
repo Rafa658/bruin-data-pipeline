@@ -1,0 +1,11 @@
+name: reverse_etl.flight_consumption_ml_ready_to_pg
+type: ingestr
+
+parameters:
+  source: duckdb
+  source_connection: duckdb-default
+  source_table: agg.flight_consumption_ml_ready
+  destination: postgres
+  destination_connection: pg-local
+  destination_table: flight_consumption_ml_ready
+  if_exists: drop
