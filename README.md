@@ -13,6 +13,18 @@ This project implements a production-grade data pipeline for analyzing aviation 
 - **DuckDB Integration**: Optimized for single-process, multi-threaded data processing
 - **Materialization Strategy**: Performance-optimized table caching
 
+## Why Bruin?
+
+I chose [Bruin](https://getbruin.com/) over dbt for three main reasons:
+
+1. **Already used dbt**: I've been using dbt daily at work and during my thesis development. I just wanted to try a different tool.
+
+2. **Single-tool solution**: Bruin allows me to handle data ingestion and compilation in one tool — essentially replacing both Airflow and dbt in a single pipeline framework.
+
+3. **Native Python support**: dbt also supports Python, but it's limited to dataframe operations. In Bruin, Python is a first-class citizen, allowing me to orchestrate Python code together with dbt compilation seamlessly.
+
+dbt isn't bad — it's excellent and widely adopted. In fact I use it daily in my actual job. But I found working with Bruin for this project very enjoyable and plan to use it for other projects.
+
 ## 🏗️ Architecture
 
 ### Data Pipeline Layers
@@ -61,7 +73,7 @@ marts/                 # Final analytical models (dim_ descriptive, fct_ measure
 
 ### Prerequisites
 
-- **Bruin CLI**: Install from https://bruin.io
+- **Bruin CLI**: Install from https://getbruin.com/
 - **DuckDB**: Required database backend
 - **Python 3.9+**: For additional tooling
 
