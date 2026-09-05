@@ -11,7 +11,7 @@ materialization:
 depends:
   - marts.fct_elapsed_time_by_fl
   - marts.dim_flight_identifiers
-  - intermediate.int_kpi08_filtered_by_forecast_conditions
+  - intermediate.int_kpi08__filtered_by_forecast_conditions
   - marts.fct_tma_occupation
 
 @bruin */
@@ -48,7 +48,7 @@ kpi08 as (
         k.aircraft_type as aircraft,
         k.runway_validated,
         k.bearing,
-        k.setor,
+        k.sector,
         k.flight_date as date,
         extract(hour from k.entry_time)::int as hour,
         k.entry_time as c_time,
@@ -56,8 +56,8 @@ kpi08 as (
         k.transito,
         k.desimp,
         k.kpi08,
-        k.transit_tma
-    from intermediate.int_kpi08_filtered_by_forecast_conditions k
+        k.transit_in_tma_interval
+    from intermediate.int_kpi08__filtered_by_forecast_conditions k
     where 1=1
 ),
 consumption as (
@@ -88,9 +88,9 @@ select
     k.aircraft,
     k.runway_validated as drwy_validado,
     k.bearing as bear,
-    k.setor,
+    k.sector,
     epoch(k.kpi08) as kpi08,
-    epoch(k.transit_tma) as transit_tma,
+    epoch(k.transit_in_tma_interval) as transit_in_tma_interval,
     null as visibility,
     null as ceiling,
     t.nr_aircraft_in_tma,
