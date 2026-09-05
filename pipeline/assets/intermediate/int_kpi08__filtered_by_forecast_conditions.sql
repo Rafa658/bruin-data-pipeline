@@ -80,7 +80,9 @@ columns:
 
 @bruin */
 
-select
+with
+filtering_nulls as (
+  select
     id,
     flight_date,
     flight_id,
@@ -98,8 +100,8 @@ select
     unimpeded_interval,
     kpi08,
     transit_in_tma_interval
-from staging.stg_kpi08__odin
-where 1=1
+  from staging.stg_kpi08__odin
+  where 1=1
     -- Business rule: flights arrived at SBGR
     and arrival_airport = 'SBGR'
     -- Business rule: terminal maneuvering area cylinder radius is 100 nautical miles
@@ -115,3 +117,37 @@ where 1=1
         'A320', 'A321', 'B738', 'B38M',
         'A20N', 'A319', 'A21N', 'E195', 'B737', 'B734'
     )
+),
+row_number_over_id as (
+  select
+      *,
+      row_number() over(
+          partition by id
+          order by landing_ts desc
+      ) as rn
+  from filtering_nulls
+),
+deduplicating_records as (
+  select
+    id,
+    flight_date,
+    flight_id,
+    departure_airport,
+    arrival_airport,
+    aircraft_type,
+    aircraft_registration,
+    runway_validated,
+    bearing,
+    sector,
+    entry_ts,
+    landing_ts,
+    cylinder_radius,
+    transit_interval,
+    unimpeded_interval,
+    kpi08,
+    transit_in_tma_interval
+  from row_number_over_id
+  where rn = 1
+)
+select *
+from deduplicating_records
