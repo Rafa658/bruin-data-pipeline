@@ -41,7 +41,7 @@ row_number_over_id as (
     select
       *,
       row_number() over(
-          partition by id, radar_ts, flight_level_hundreds_of_feet, aircraft_speed_knots
+          partition by id, flight_level_hundreds_of_feet
           order by radar_ts desc
       ) as rn
     from filtering_nulls
