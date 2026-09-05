@@ -25,13 +25,24 @@ columns:
 
 @bruin */
 
-select
-    -- Type casting and standardization only: no filters, no calculations, no joins
-    -- Source ds_registration is filtered in intermediate layer (contains literal 'NULL' strings)
-    dt_radar::date as radar_date,
-    nr_speed as aircraft_speed,
-    nr_flightlevel::numeric as flight_level,
-    ds_registration as flight_id,
-    dt_radar::timestamp as radar_timestamp
-from raw.tb_radar
-where 1=1
+with
+transformed as (
+  select
+      -- Type casting and standardization only: no filters, no calculations, no joins
+      -- Source ds_registration is filtered in intermediate layer (contains literal 'NULL' strings)
+      dt_radar::date as radar_date,
+      nr_speed as aircraft_speed_knots,
+      nr_flightlevel::numeric as flight_level_hundreds_of_feet,
+      ds_registration as flight_id,
+      dt_radar::timestamp as radar_ts
+  from raw.tb_radar
+  where 1=1
+),
+generate_id as (
+  select
+      *,
+      radar_date || flight_id as id
+  from transformed
+)
+select *
+from generate_id
