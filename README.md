@@ -42,7 +42,7 @@ staging/               # Type-cast + rename only (no filters, no calc, no joins)
 
 intermediate/          # Business logic: IDs, imputation, filters, joins
 ├── int_kpi08__enriched.sql                       # ID gen, setor imputation, transit_tma (no filter)
-├── int_kpi08_filtered_by_forecast_conditions.sql # Business-rule filters (dep enriched)
+├── int_kpi08__filtered_by_forecast_conditions.sql # Business-rule filters (dep enriched)
 ├── int_radar_filtered_by_flights_at_tma.sql      # Radar<->flight join + TMA time window
 └── int_fuel__by_flight_level.sql                 # BADA fuel_flow per radar point (exact FL match)
 
