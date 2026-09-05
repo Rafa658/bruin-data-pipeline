@@ -1,6 +1,6 @@
 /* @bruin
 
-name: intermediate.int_kpi08_filtered_by_forecast_conditions
+name: intermediate.int_kpi08__filtered_by_forecast_conditions
 type: duckdb.sql
 tags:
   - intermediate
@@ -9,7 +9,7 @@ materialization:
   type: table
 
 depends:
-  - intermediate.int_kpi08__enriched
+  - staging.stg_kpi08__odin
 
 columns:
   - name: id
@@ -44,10 +44,9 @@ columns:
     description: Bearing of the flight (0-360 degrees)
     checks:
       - name: not_null
-  - name: setor
+  - name: sector
     description: TMA sector (0, 60, 120, 180, 240, 300) calculated from bearing
     checks:
-      - name: not_null
       - name: accepted_values
         value:
           - "0"
@@ -60,23 +59,21 @@ columns:
     description: Time of entry into TMA
   - name: cylinder_radius
     description: Cylinder radius
-  - name: landing_time
+  - name: landing_ts
     description: Time of exit from TMA
     checks:
       - name: not_null
-  - name: transito
+  - name: transit_interval
     description: Time between entering TMA cylinder and landing (in seconds)
     checks:
       - name: not_null
-  - name: desimp
+  - name: unimpeded_interval
     description: Reference transit time (20th percentile for similar flights)
     checks:
       - name: not_null
   - name: kpi08
     description: Additional transit time (transito - desimp) representing delay
-    checks:
-      - name: not_null
-  - name: transit_tma
+  - name: transit_in_tma_interval
     description: Actual transit time inside TMA (sum of desimp and kpi08)
     checks:
       - name: not_null
@@ -93,15 +90,15 @@ select
     aircraft_registration,
     runway_validated,
     bearing,
-    setor,
-    entry_time,
+    sector,
+    entry_ts,
+    landing_ts,
     cylinder_radius,
-    landing_time,
-    transito,
-    desimp,
+    transit_interval,
+    unimpeded_interval,
     kpi08,
-    transit_tma
-from intermediate.int_kpi08__enriched
+    transit_in_tma_interval
+from staging.stg_kpi08__odin
 where 1=1
     -- Business rule: flights arrived at SBGR
     and arrival_airport = 'SBGR'
@@ -109,8 +106,8 @@ where 1=1
     and cylinder_radius = 100
     -- Data quality: exclude flights without calculated kpi08
     and kpi08 is not null
-    -- Data quality: exclude flights without setor
-    and setor is not null
+    -- Data quality: exclude flights without sector
+    and sector is not null
     -- Business rule: filter departures from airports in Brazil
     and departure_airport like 'SB%'
     -- Business rule: filter for most common aircraft types in Brazilian civil aviation
