@@ -8,4 +8,4 @@ materialization:
 @bruin */
 
 select *
-from read_parquet('../bruin/data/kpi08/**/*.parquet', hive_partitioning = true)
+from read_parquet('~/Documents/bruin/data/kpi08/**/*.parquet', hive_partitioning = true)
