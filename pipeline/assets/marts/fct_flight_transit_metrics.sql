@@ -9,7 +9,7 @@ materialization:
   type: table
 
 depends:
-  - intermediate.int_kpi08_filtered_by_forecast_conditions
+  - intermediate.int_kpi08__filtered_by_forecast_conditions
   - marts.dim_flight_identifiers
 
 columns:
@@ -29,7 +29,7 @@ columns:
     description: Additional transit time (transito - desimp) representing delay above reference
     checks:
       - name: not_null
-  - name: transit_tma
+  - name: transit_in_tma_interval
     description: Actual transit time inside TMA (sum of desimp and kpi08)
     checks:
       - name: not_null
@@ -47,6 +47,6 @@ select
   transito,
   desimp,
   kpi08,
-  transit_tma
-from intermediate.int_kpi08_filtered_by_forecast_conditions
+  transit_in_tma_interval
+from intermediate.int_kpi08__filtered_by_forecast_conditions
 where 1=1

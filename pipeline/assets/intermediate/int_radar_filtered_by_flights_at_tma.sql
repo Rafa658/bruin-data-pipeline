@@ -9,7 +9,7 @@ materialization:
   type: table
 
 depends:
-  - intermediate.int_kpi08_filtered_by_forecast_conditions
+  - intermediate.int_kpi08__filtered_by_forecast_conditions
   - staging.stg_radar__odin
 
 columns:
@@ -56,7 +56,7 @@ flights as (
         entry_time,
         landing_time,
         row_number() over(partition by id order by landing_time desc) as rn
-    from intermediate.int_kpi08_filtered_by_forecast_conditions
+    from intermediate.int_kpi08__filtered_by_forecast_conditions
     where 1=1
 ),
 flights_one as (
