@@ -9,7 +9,7 @@ materialization:
   type: table
 
 depends:
-  - intermediate.int_kpi08_filtered_by_forecast_conditions
+  - intermediate.int_kpi08__filtered_by_forecast_conditions
 
 columns:
   - name: id
@@ -24,7 +24,7 @@ columns:
     description: Angle (0-360 degrees) relative to airport TMA
     checks:
       - name: not_null
-  - name: setor
+  - name: sector
     description: TMA sector (0, 60, 120, 180, 240, 300) based on bearing
     checks:
       - name: not_null
@@ -50,8 +50,8 @@ select
   id,
   runway_validated as drwy_validado,
   bearing as bear,
-  setor,
+  sector,
   entry_time as c_time,
   landing_time as aldt
-from intermediate.int_kpi08_filtered_by_forecast_conditions
+from intermediate.int_kpi08__filtered_by_forecast_conditions
 where 1=1

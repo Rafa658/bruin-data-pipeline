@@ -9,7 +9,7 @@ materialization:
   type: table
 
 depends:
-  - intermediate.int_kpi08_filtered_by_forecast_conditions
+  - intermediate.int_kpi08__filtered_by_forecast_conditions
 
 columns:
   - name: id
@@ -49,5 +49,5 @@ select
     aircraft_type as aircraft,
     aircraft_registration as reg,
     flight_date as date
-from intermediate.int_kpi08_filtered_by_forecast_conditions
+from intermediate.int_kpi08__filtered_by_forecast_conditions
 where 1=1
