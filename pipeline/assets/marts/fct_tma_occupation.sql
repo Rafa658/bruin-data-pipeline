@@ -9,7 +9,7 @@ materialization:
   type: table
 
 depends:
-  - intermediate.int_radar_filtered_by_flights_at_tma
+  - intermediate.int_radar__filtered_by_flights_at_tma
 
 columns:
   - name: id
@@ -41,7 +41,7 @@ flight_events as (
         c_time as event_time,
         'entry' as event_type,
         1 as change_value
-    from intermediate.int_radar_filtered_by_flights_at_tma
+    from intermediate.int_radar__filtered_by_flights_at_tma
     where c_time is not null
 
     union all
@@ -52,7 +52,7 @@ flight_events as (
         aldt as event_time,
         'exit' as event_type,
         -1 as change_value
-    from intermediate.int_radar_filtered_by_flights_at_tma
+    from intermediate.int_radar__filtered_by_flights_at_tma
     where aldt is not null
 ),
 

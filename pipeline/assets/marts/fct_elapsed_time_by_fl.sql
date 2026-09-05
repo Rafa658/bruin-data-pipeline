@@ -9,7 +9,7 @@ materialization:
   type: table
 
 depends:
-  - intermediate.int_radar_filtered_by_flights_at_tma
+  - intermediate.int_radar__filtered_by_flights_at_tma
   - intermediate.int_fuel__by_flight_level
   - marts.dim_flight_identifiers
 
@@ -72,7 +72,7 @@ flights_at_tma as (
         fl,
         aircraft_type,
         c_time
-    from intermediate.int_radar_filtered_by_flights_at_tma
+    from intermediate.int_radar__filtered_by_flights_at_tma
     where 1=1
 ),
 flights_elapsed_time as (

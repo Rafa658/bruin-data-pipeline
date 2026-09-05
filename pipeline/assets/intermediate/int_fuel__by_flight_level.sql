@@ -9,7 +9,7 @@ materialization:
   type: table
 
 depends:
-  - intermediate.int_radar_filtered_by_flights_at_tma
+  - intermediate.int_radar__filtered_by_flights_at_tma
   - intermediate.int_fuel__bada_interpolated
 
 columns:
@@ -40,7 +40,7 @@ select
     r.fl,
     r.aircraft_type,
     b.fuel_flow_kg_s as fuel_flow
-from intermediate.int_radar_filtered_by_flights_at_tma r
+from intermediate.int_radar__filtered_by_flights_at_tma r
 join intermediate.int_fuel__bada_interpolated b
     on b.aircraft = r.aircraft_type
     and b.fl = r.fl::int
