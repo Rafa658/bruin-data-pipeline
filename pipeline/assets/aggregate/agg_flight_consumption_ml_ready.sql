@@ -32,14 +32,14 @@ percentiles as (
     from base
     group by 1, 2, 3
 ),
-transit_tma_moving_avg as (
+transit_in_tma_interval_moving_avg as (
     select
         id,
-        avg(transit_tma) OVER (
-            PARTITION BY drwy_validado, setor
+        avg(transit_in_tma_interval) OVER (
+            PARTITION BY drwy_validado, sector
             ORDER BY aldt
             RANGE BETWEEN INTERVAL '1 hour' PRECEDING AND CURRENT ROW
-        ) as transit_tma_predicted
+        ) as transit_in_tma_interval_predicted
     from base
 ),
 final as (
@@ -62,10 +62,10 @@ final as (
             when b.dow = 6 then 'sat'
             else 'invalid'
         end as dow,
-        b.setor,
+        b.sector,
         b.kpi08,
-        b.transit_tma,
-        t.transit_tma_predicted,
+        b.transit_in_tma_interval,
+        t.transit_in_tma_interval_predicted,
         b.visibility,
         b.ceiling,
         b.consumption_kg,
@@ -74,6 +74,6 @@ final as (
         b.consumption_kg - p.consumption_20p as kpi16
     from base b
         left join percentiles p using (adep, aircraft, drwy_validado)
-        left join transit_tma_moving_avg t using (id)
+        left join transit_in_tma_interval_moving_avg t using (id)
 )
 select * from final
