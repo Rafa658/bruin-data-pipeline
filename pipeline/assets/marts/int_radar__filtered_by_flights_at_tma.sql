@@ -1,6 +1,6 @@
 /* @bruin
 
-name: intermediate.int_radar_filtered_by_flights_at_tma
+name: intermediate.int_radar__filtered_by_flights_at_tma
 type: duckdb.sql
 tags:
   - intermediate
