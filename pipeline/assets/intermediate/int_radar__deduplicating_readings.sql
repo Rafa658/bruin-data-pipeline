@@ -28,6 +28,7 @@ filtering_nulls as (
     select
       id,  
       radar_ts,
+      radar_date,
       aircraft_speed_knots,
       flight_level_hundreds_of_feet
     from staging.stg_radar__odin
@@ -50,6 +51,7 @@ deduplicating_records as (
     select
       id,
       radar_ts,
+      radar_date,
       aircraft_speed_knots,
       flight_level_hundreds_of_feet
     from row_number_over_id
