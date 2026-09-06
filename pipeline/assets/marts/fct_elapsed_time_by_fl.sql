@@ -13,7 +13,7 @@ depends:
 
 columns:
   - name: id
-    description: Flight identifier (FK to dim_flight_identifiers.id); radar points are children of a flight
+    description: Flight identifier (FK to dim_flight_attributes.id); radar points are children of a flight
   - name: aircraft_type
     description: Aircraft type
   - name: entry_ts
@@ -30,9 +30,9 @@ columns:
     description: Elapsed time between radar points (in seconds)
 
 custom_checks:
-  - name: every flight key exists in dim_flight_identifiers
+  - name: every flight key exists in dim_flight_attributes
     description: Referential integrity between the fact and the flight dimension; also validates the radar<->flight join produced valid flight keys.
-    query: SELECT count(*) FROM marts.fct_elapsed_time_by_fl f LEFT JOIN marts.dim_flight_identifiers d ON f.id = d.id WHERE d.id IS NULL
+    query: SELECT count(*) FROM marts.fct_elapsed_time_by_fl f LEFT JOIN marts.dim_flight_attributes d ON f.id = d.id WHERE d.id IS NULL
     value: 0
   - name: fact is non-empty
     description: Guards against a silently empty fact table from a broken join.
@@ -50,7 +50,11 @@ flights_at_tma as (
 flights_elapsed_time as (
     select
         id,
-        flight_level_hundreds_of_feet::integer,
+        aircraft_type,
+        entry_ts,
+        radar_ts,
+        aircraft_speed_knots,
+        flight_level_hundreds_of_feet::integer as flight_level_hundreds_of_feet,
         round(
             100 * (flight_level_hundreds_of_feet - lag(flight_level_hundreds_of_feet) over flight) /
             nullif(extract(epoch from (radar_ts - lag(radar_ts) over flight))::numeric, 0),

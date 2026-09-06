@@ -13,7 +13,7 @@ depends:
 
 columns:
   - name: id
-    description: "Flight natural key (FK to dim_flight_identifiers.id). Non-unique: a callsign can operate distinct flights on the same date."
+    description: "Flight natural key (flight_date + flight_id). Non-unique: a callsign can operate distinct flights on the same date."
   - name: drwy_validado
     description: Runway identifier at destination airport
   - name: adep
