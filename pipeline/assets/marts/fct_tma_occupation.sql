@@ -38,22 +38,22 @@ flight_events as (
     -- Entry events into TMA (each flight enters once)
     select distinct
         id,
-        c_time as event_time,
+        entry_ts as event_time,
         'entry' as event_type,
         1 as change_value
     from marts.fct_flights_at_tma
-    where c_time is not null
+    where entry_ts is not null
 
     union all
 
     -- Exit events from TMA (landing)
     select distinct
         id,
-        aldt as event_time,
+        landing_ts as event_time,
         'exit' as event_type,
         -1 as change_value
     from marts.fct_flights_at_tma
-    where aldt is not null
+    where landing_ts is not null
 ),
 
 ordered_events as (

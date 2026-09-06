@@ -60,7 +60,10 @@ select
     id,
     radar_ts,
     aircraft_speed_knots,
-    flight_level_hundreds_of_feet
+    flight_level_hundreds_of_feet,
+    aircraft_type,
+    entry_ts,
+    landing_ts
 from radar_at_tma
 where 1=1
     and rn = 1
