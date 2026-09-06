@@ -10,7 +10,7 @@ materialization:
 
 depends:
   - marts.fct_elapsed_time_by_fl
-  - marts.dim_flight_identifiers
+  - marts.dim_flight_attributes
   - intermediate.int_kpi08__filtered_by_forecast_conditions
   - marts.fct_tma_occupation
 
@@ -36,7 +36,7 @@ id_aircraft as (
         aircraft_type as aircraft,
         entry_time as c_time,
         landing_time as aldt
-    from marts.dim_flight_identifiers
+    from marts.dim_flight_attributes
     where 1=1
 ),
 kpi08 as (
