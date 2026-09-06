@@ -59,7 +59,7 @@ transformed as (
       drwy_validado as runway_validated,
       bear as bearing,
       case
-          when sector is not null then cast(sector as integer)::varchar
+          when setor is not null then cast(setor as integer)::varchar
           when bearing is not null then cast(floor(bearing / 60) * 60 as integer)::varchar
           else null
       end as sector,
