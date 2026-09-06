@@ -2,6 +2,7 @@
 
 name: agg.flight_consumption_ml_ready
 type: duckdb.sql
+enabled: false
 tags:
   - aggregate
 
