@@ -1,6 +1,6 @@
 /* @bruin
 
-name: intermediate.int_fuel__by_flight_level
+name: marts.fct_fuel_flow_by_flight_level
 type: duckdb.sql
 tags:
   - intermediate
@@ -9,7 +9,7 @@ materialization:
   type: table
 
 depends:
-  - intermediate.int_radar__filtered_by_flights_at_tma
+  - marts.fct_elapsed_time_by_fl
   - intermediate.int_fuel__bada_interpolated
 
 columns:
@@ -35,12 +35,13 @@ columns:
 @bruin */
 
 select
-    r.id,
-    r.dt_radar,
-    r.fl,
-    r.aircraft_type,
-    b.fuel_flow_kg_s as fuel_flow
-from intermediate.int_radar__filtered_by_flights_at_tma r
+  *
+    -- r.id,
+    -- r.dt_radar,
+    -- r.fl,
+    -- r.aircraft_type,
+    -- b.fuel_flow_kg_s as fuel_flow
+from marts.fct_elapsed_time_by_fl r
 join intermediate.int_fuel__bada_interpolated b
     on b.aircraft = r.aircraft_type
     and b.fl = r.fl::int
