@@ -1,366 +1,209 @@
-# Bruin Data Pipeline - Aviation KPI Analysis
+# Bruin Aviation KPI Pipeline
 
-## 📋 Overview
+This repository contains a [Bruin](https://getbruin.com/) pipeline that prepares
+flight, radar, and BADA aircraft-performance data for analysis of operations in
+the 100 NM Terminal Maneuvering Area (TMA) around São Paulo/Guarulhos
+International Airport (SBGR).
 
-This project implements a production-grade data pipeline for analyzing aviation operations, specifically focused on Terminal Maneuvering Area (TMA) performance at São Paulo/Guarulhos International Airport (SBGR). The pipeline processes radar and flight data to calculate Key Performance Indicators (KPIs) that measure aircraft transit times and operational efficiency.
+The active pipeline runs on DuckDB. It filters the study population, matches
+radar readings to flights, calculates flight-level movement and TMA occupancy,
+and attaches interpolated BADA fuel-flow values to radar points.
 
-## 🎯 Key Features
+## Repository layout
 
-- **Multi-layer Architecture**: Raw → Staging → Intermediate → Marts separation of concerns
-- **TMA Performance Analysis**: Measures aircraft time spent in 100NM terminal area
-- **Flight Level Calculations**: Computes rate of climb/descent between radar points
-- **Quality Control**: Comprehensive data validation and business rule enforcement
-- **DuckDB Integration**: Optimized for single-process, multi-threaded data processing
-- **Materialization Strategy**: Performance-optimized table caching
-
-## Why Bruin?
-
-I chose [Bruin](https://getbruin.com/) over dbt for three main reasons:
-
-1. **Already used dbt**: I've been using dbt daily at work and during my thesis development. I just wanted to try a different tool.
-
-2. **Single-tool solution**: Bruin allows me to handle data ingestion and compilation in one tool — essentially replacing both Airflow and dbt in a single pipeline framework.
-
-3. **Native Python support**: dbt also supports Python, but it's limited to dataframe operations. In Bruin, Python is a first-class citizen, allowing me to orchestrate Python code together with dbt compilation seamlessly.
-
-dbt isn't bad — it's excellent and widely adopted. In fact I use it daily in my actual job. But I found working with Bruin for this project very enjoyable and plan to use it for other projects.
-
-## 🏗️ Architecture
-
-### Data Pipeline Layers
-
-```
-raw/                    # Raw data ingestion (1:1 with source, no transforms)
-├── kpi08.sql                  # Flight KPI data (Parquet view)
-├── tb_radar.sql               # Radar point data (Parquet view)
-└── bada_fuel_chart.asset.yml  # BADA fuel chart (seed)
-
-staging/               # Type-cast + rename only (no filters, no calc, no joins)
-├── stg_kpi08__odin.sql          # KPI type casting (+aircraft_registration)
-├── stg_radar__odin.sql          # Radar type casting (ds_registration -> flight_id)
-└── stg_fuel_chart__bada.sql     # Fuel chart type casting
-
-intermediate/          # Business logic: IDs, imputation, filters, joins
-├── int_kpi08__enriched.sql                       # ID gen, setor imputation, transit_tma (no filter)
-├── int_kpi08__filtered_by_forecast_conditions.sql # Business-rule filters (dep enriched)
-├── int_radar_filtered_by_flights_at_tma.sql      # Radar<->flight join + TMA time window
-└── int_fuel__by_flight_level.sql                 # BADA fuel_flow per radar point (exact FL match)
-
-marts/                 # Final analytical models (dim_ descriptive, fct_ measures)
-├── dim_flight_identifiers.sql           # Flight dimension (+reg, unique PK)
-├── dim_flight_operational_attributes.sql # Operational attrs (descriptive only, unique PK)
-├── fct_flight_transit_metrics.sql       # transito/desimp/kpi08/transit_tma (FK check)
-├── fct_tma_occupation.sql               # TMA occupation over time (renamed from dim_)
-└── fct_elapsed_time_by_fl.sql           # Flight performance + fuel_flow (FK + non-empty checks)
+```text
+.
+├── .bruin.example.yml             # Local Bruin connection template
+├── pyproject.toml                 # Python tooling metadata
+├── README.md
+└── pipeline/
+    ├── pipeline.yml               # Pipeline schedule and default connections
+    ├── README.md                  # Pipeline-specific notes
+    └── assets/
+        ├── raw/                   # External Parquet views and BADA seed asset
+        ├── staging/               # Source renaming and type normalization
+        ├── intermediate/          # Filtering, deduplication, and interpolation
+        ├── marts/                 # Runnable analytical tables
+        ├── aggregate/             # Disabled experimental KPI16 outputs
+        └── seeds/
+            └── bada_fuel_chart.csv
 ```
 
-### Layer contract
-- **raw** — 1:1 with external source. View. Source column names. Docs only.
-- **staging** — type-cast + rename to snake_case. **No filters, no calc, no joins.** View.
-- **intermediate** — ID gen, imputation, derived fields, business filters, cross-source joins. Table.
-- **marts** — `dim_*` descriptive only + `unique` PK; `fct_*` measures + `not_null` FK + custom referential-integrity check. Table.
+Generated local files such as `.bruin.yml`, `bruin.duckdb`, `bruin-docs.html`,
+logs, and `graphify-out/` are intentionally ignored by Git.
 
-### Key Transformations
+## Pipeline architecture
 
-- **Flight composite key**: `(flight_date, flight_id)` where `flight_id` is the callsign (kpi08 `fltid`, radar `ds_registration` which is mislabeled in the source). Radar points are children of a flight, ordered by `dt_radar`.
-- **Setor Imputation**: Calculates 6-sector TMA division from bearing angles (0°, 60°, 120°, 180°, 240°, 300) in `int_kpi08__enriched`.
-- **TMA Filtering**: `int_radar_filtered_by_flights_at_tma` joins radar to flights on `(date, callsign)` and confines points to `[entry_time, landing_time]`.
-- **KPI Calculation**: `transit_tma = desimp + kpi08` (reference time + additional delay) in `int_kpi08__enriched`.
-- **Flight Level Analysis**: `fct_elapsed_time_by_fl` computes rate of climb/descent between radar points, partitioned by flight.
-- **Fuel Burn**: `int_fuel__by_flight_level` joins BADA fuel_flow at exact `(aircraft_type, fl)`; LEFT-joined into `fct_elapsed_time_by_fl` (interim exact match; interpolation planned).
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- **Bruin CLI**: Install from https://getbruin.com/
-- **DuckDB**: Required database backend
-- **Python 3.9+**: For additional tooling
-
-### Installation
-
-1. **Clone the repository**
-```bash
-git clone git@github.com:Rafa658/bruin-data-pipeline.git
-cd bruin-data-pipeline
+```text
+KPI08 Parquet ──> raw.kpi08 ──> staging.stg_kpi08__odin
+                                      │
+                                      v
+                    intermediate.int_kpi08__filtered_by_forecast_conditions
+                         │             │                    │
+                         v             v                    v
+              dim_flight_attributes   dim_flight_       fct_flights_at_tma
+                                     transit_metrics           │
+                                                              ├──> fct_tma_occupation
+Radar Parquet ──> raw.tb_radar ──> staging.stg_radar__odin     │
+                                      │                        v
+                                      └──> int_radar__    fct_elapsed_time_by_fl
+                                           deduplicating_      │
+                                           readings            v
+                                                     fct_fuel_flow_by_flight_level
+                                                              ^
+BADA CSV ──> raw.bada_fuel_chart ──> staging.stg_fuel_chart__bada
+                                      │
+                                      └──> int_fuel__bada_interpolated
 ```
 
-2. **Install Bruin CLI**
+### Layers and assets
+
+| Layer | Purpose | Current assets |
+|---|---|---|
+| `raw` | Expose source data with minimal transformation. | `kpi08`, `tb_radar`, `bada_fuel_chart` |
+| `staging` | Normalize names and types and create the shared flight key. | `stg_kpi08__odin`, `stg_radar__odin`, `stg_fuel_chart__bada` |
+| `intermediate` | Apply study filters, remove duplicate readings, and interpolate BADA values. | `int_kpi08__filtered_by_forecast_conditions`, `int_radar__deduplicating_readings`, `int_fuel__bada_interpolated` |
+| `marts` | Materialize flight attributes, KPI08 metrics, radar-point facts, TMA occupancy, elapsed time, and fuel flow. | `dim_flight_attributes`, `dim_flight_transit_metrics`, `fct_flights_at_tma`, `fct_tma_occupation`, `fct_elapsed_time_by_fl`, `fct_fuel_flow_by_flight_level` |
+| `aggregate` | Prototype flight-consumption and ML-ready datasets. | `agg_flight_consumption`, `agg_flight_consumption_ml_ready` |
+
+Both aggregate assets currently have `enabled: false`. They still reference an
+earlier marts schema and are not part of a normal pipeline run.
+
+## Key modeling rules
+
+- A flight is matched across KPI08 and radar data with `date || callsign`.
+  `raw.tb_radar.ds_registration` is misleadingly named: it contains a callsign,
+  so staging renames it to `flight_id`.
+- The study population is limited to flights arriving at SBGR, entering the
+  100 NM cylinder, departing from Brazilian airports (`SB%`), using one of the
+  configured common aircraft types, and having usable KPI08 and sector data.
+- KPI08 rows are deduplicated by flight key, keeping the latest landing
+  timestamp.
+- Radar rows with missing identifiers, flight levels, or speed are removed.
+  Readings are deduplicated by flight and flight level.
+- `marts.fct_flights_at_tma` keeps radar points inside each flight's inclusive
+  `[entry_ts, landing_ts]` interval.
+- `marts.fct_elapsed_time_by_fl` calculates elapsed seconds and average
+  climb/descent rate between consecutive radar points. Flights with fewer than
+  100 retained radar readings are excluded.
+- `intermediate.int_fuel__bada_interpolated` linearly fills BADA flight levels
+  from 0 through 400. `marts.fct_fuel_flow_by_flight_level` then joins the
+  interpolated value by aircraft type and integer flight level.
+- `marts.fct_tma_occupation` turns flight entry and landing events into
+  validity intervals containing the number of aircraft in the TMA.
+
+## Prerequisites
+
+- [Bruin CLI](https://getbruin.com/docs/getting-started/installation)
+- Source KPI08 and radar Parquet datasets
+- A local DuckDB database path
+- Python 3.14+ and Poetry only if you need the Python dependencies declared in
+  `pyproject.toml`
+
+Install the Bruin CLI on macOS or Linux:
+
 ```bash
 curl -LsSf https://getbruin.com/install/cli | sh
 ```
 
-4. **Install DuckDB**
+Optional Python environment:
+
 ```bash
-curl https://install.duckdb.org | sh
+poetry install --no-root
 ```
 
-5. **Configure environment**
+## Local setup
+
+1. Clone the repository.
+
+   ```bash
+   git clone git@github.com:Rafa658/bruin-data-pipeline.git
+   cd bruin-data-pipeline
+   ```
+
+2. Create the local Bruin configuration.
+
+   ```bash
+   cp .bruin.example.yml .bruin.yml
+   ```
+
+3. Edit `.bruin.yml` and set the `duckdb-default` path to a writable local
+   database file. The PostgreSQL connection remains in the pipeline
+   configuration but is not used by the current DuckDB SQL assets.
+
+4. Place the source Parquet files in:
+
+   ```text
+   ~/Documents/bruin/data/
+   ├── kpi08/**/*.parquet
+   └── tb_radar/**/*.parquet
+   ```
+
+   These locations are currently hard-coded in
+   `pipeline/assets/raw/kpi08.sql` and `pipeline/assets/raw/tb_radar.sql`.
+   Update both SQL files if your datasets live elsewhere. The BADA seed is
+   already tracked at `pipeline/assets/seeds/bada_fuel_chart.csv`.
+
+5. Validate the project.
+
+   ```bash
+   bruin validate .
+   ```
+
+## Running and inspecting the pipeline
+
+Run from the repository root. Use one worker because concurrent writers can
+contend for the same DuckDB file.
+
 ```bash
-# Copy configuration template
-cp .bruin.yml.example .bruin.yml
-
-# Edit connection settings
-nano .bruin.yml
-```
-
-## 📊 Running the Pipeline
-
-### Basic Execution
-
-```bash
-# Run entire pipeline (recommended: single worker for DuckDB)
+# Run the active DAG and its quality checks
 bruin run pipeline/pipeline.yml --workers 1
 
-# Run specific pipeline
-bruin run pipeline/pipeline.yml
+# Rebuild materialized tables
+bruin run pipeline/pipeline.yml --workers 1 --full-refresh
 
-# Run with debug output
-bruin run pipeline/pipeline.yml --debug
+# Render one asset's SQL without executing it
+bruin render pipeline/assets/marts/fct_elapsed_time_by_fl.sql
+
+# Inspect a result table
+bruin query --connection duckdb-default \
+  "select * from marts.fct_elapsed_time_by_fl limit 10"
 ```
 
-### Pipeline Configuration
+Bruin infers dependencies from each asset's `depends` metadata. Column and
+custom checks are declared in the asset headers and run with the pipeline.
 
-```bash
-# List available pipelines
-bruin run --help
+## Main outputs
 
-# Validate configuration
-bruin validate
+| Asset | Grain and use |
+|---|---|
+| `marts.dim_flight_attributes` | One retained KPI08 flight record with route, aircraft, runway, sector, and TMA timestamps. |
+| `marts.dim_flight_transit_metrics` | KPI08 transit, unimpeded, delay, and total TMA intervals by flight key. |
+| `marts.fct_flights_at_tma` | Radar points matched to retained flights and restricted to their TMA transit window. |
+| `marts.fct_elapsed_time_by_fl` | Consecutive radar-point elapsed time and climb/descent rate for sufficiently sampled flights. |
+| `marts.fct_fuel_flow_by_flight_level` | BADA fuel flow attached to each eligible radar point. |
+| `marts.fct_tma_occupation` | Time intervals with the concurrent aircraft count inside the TMA. |
 
-# Test connections
-bruin connections test duckdb-default
-```
+## Development conventions
 
-### Common Issues
+- Keep source-specific renaming and casting in `staging`.
+- Put filtering, deduplication, interpolation, and cross-source preparation in
+  `intermediate`.
+- Materialize consumer-facing analytical datasets in `marts`.
+- Add Bruin metadata, dependencies, column descriptions, and checks directly
+  to each asset definition.
+- Before opening a pull request, run:
 
-**DuckDB Lock Conflicts:**
-```bash
-# Solution: Use single worker
-bruin run pipeline/pipeline.yml --workers 1
-```
+  ```bash
+  bruin validate .
+  bruin run pipeline/pipeline.yml --workers 1
+  ```
 
-**Materialization Performance:**
-```bash
-# Clear and rebuild tables
-bruin clean
-bruin run pipeline/pipeline.yml --workers 1
-```
+Use conventional commit prefixes such as `feat:`, `fix:`, `refactor:`,
+`test:`, `docs:`, and `chore:`.
 
-## 🔧 Configuration
+## References
 
-### Environment Setup
-
-Edit `.bruin.yml`:
-
-```yaml
-default_environment: default
-environments:
-  default:
-    connections:
-        duckdb:
-            - name: duckdb-default
-              path: /path/to/bruin.duckdb
-        postgres:
-            - name: pg-local
-              username: postgres
-              password: "your_password"
-              host: localhost
-              port: 5432
-              database: aviation_kpi
-```
-
-### Pipeline Settings
-
-Edit `pipeline/pipeline.yml`:
-
-```yaml
-name: bruin-init
-schedule: daily
-start_date: "2023-01-01"
-catchup: false
-
-default_connections:
-    duckdb: duckdb-default
-    postgres: pg-local
-```
-
-## 📈 Data Models
-
-### Dimension Tables
-
-**dim_flight_identifiers**
-- Flight metadata (airports, aircraft, registration, dates)
-- Primary key: `id` (flight_date + callsign), `unique` check
-
-**dim_flight_operational_attributes**
-- Operational descriptors (runway, bearing, sector, entry/landing times)
-- Primary key: `id`, `unique` check
-- Measures (transito/desimp/kpi08/transit_tma) live in `fct_flight_transit_metrics`
-
-### Fact Tables
-
-**fct_flight_transit_metrics**
-- Per-flight transit measures: transito, desimp, kpi08, transit_tma
-- FK to `dim_flight_identifiers.id` (custom referential-integrity check)
-
-**fct_tma_occupation**
-- Time-series of aircraft count in TMA (renamed from `dim_tma_occupation`)
-- Validity periods (dt_valid_from, dt_valid_to), `unique` on dt_valid_from
-- Current occupation status
-
-**fct_elapsed_time_by_fl**
-- Flight performance metrics: rate of climb/descent, elapsed time between radar points
-- Fuel flow (BADA) LEFT-joined per radar point; NULL when no exact (aircraft_type, fl) match
-- Filters: flights with 100+ radar points only
-- FK + non-empty custom checks
-
-## 🧪 Data Quality
-
-### Quality Checks
-
-- **Not Null**: Critical columns cannot be null
-- **Positive Values**: Time, speed, and altitude must be positive
-- **Accepted Values**: Setor must be in valid range
-- **Referential Integrity**: Flight IDs must exist in intermediate layer
-- **Temporal Logic**: Entry time must precede landing time
-
-### Validation
-
-```bash
-# Run quality checks
-bruin run pipeline/pipeline.yml --workers 1
-
-# Check data quality logs
-ls -la logs/
-```
-
-## 📊 Data Sources
-
-### Input Data Structure
-
-```
-bruin/data/
-├── kpi08/
-│   └── **/*.parquet      # Flight KPI data
-└── tb_radar/
-    └── **/*.parquet      # Radar point data
-```
-
-### Source Data Schema
-
-**KPI Data:**
-- Flight identifiers (adep, ades, fltid, aircraft)
-- Operational metrics (bearing, setor, runway)
-- Transit times (transito, desimp, kpi08)
-- Timestamps (c_time, aldt)
-
-**Radar Data:**
-- Aircraft registration (ds_registration)
-- Flight level (nr_flightlevel)
-- Speed (nr_speed)
-- Radar timestamp (dt_radar)
-
-## 🔍 Troubleshooting
-
-### Common Errors
-
-**1. DuckDB Lock Conflicts**
-```bash
-# Error: "Conflicting lock is held"
-# Solution: Use single worker or kill stuck processes
-ps aux | grep bruin
-kill -9 <PID>
-bruin run pipeline/pipeline.yml --workers 1
-```
-
-**2. Column Not Found**
-```bash
-# Error: "Referenced column not found"
-# Solution: Check column names in staging layer
-bruin query --connection duckdb-default "SELECT * FROM staging.stg_kpi08__odin LIMIT 5"
-```
-
-**3. Type Mismatch**
-```bash
-# Error: "Cannot compare values of type VARCHAR and type INTEGER"
-# Solution: Ensure consistent type casting in staging layer
-```
-
-### Debug Mode
-
-```bash
-# Enable detailed logging
-bruin run pipeline/pipeline.yml --debug
-
-# Check specific asset
-bruin render marts.fct_elapsed_time_by_fl
-```
-
-## 📚 Documentation
-
-- **Bruin Documentation**: https://docs.bruin.io
-- **DuckDB Documentation**: https://duckdb.org/docs
-- **Aviation KPI Paper**: `paper.pdf` (local reference)
-
-## 🤝 Contributing
-
-1. Create feature branch
-2. Make changes following layer separation principles
-3. Test pipeline locally: `bruin run pipeline/pipeline.yml --workers 1`
-4. Ensure quality checks pass
-5. Commit with conventional messages
-
-## 📝 Commit Conventions
-
-```
-feat: add new mart model for flight delays
-fix: resolve DuckDB lock contention issues
-refactor: separate business logic from staging layer
-docs: update README with troubleshooting guide
-```
-
-## 📊 Performance Optimization
-
-- **Materialization**: Intermediate layers use tables for caching
-- **Single Worker**: DuckDB optimization for multi-threaded single process
-- **Column Pruning**: Select only needed columns in transformations
-- **Window Functions**: Efficient partitioning by flight ID
-
-## 🔐 Security Notes
-
-- Database credentials stored in `.bruin.yml` (add to `.gitignore`)
-- No sensitive data in version control
-- Environment-specific configurations
-
-## 📈 Monitoring
-
-```bash
-# Check pipeline execution time
-time bruin run pipeline/pipeline.yml --workers 1
-
-# Monitor DuckDB database size
-du -h bruin.duckdb
-
-# Check log files
-tail -f logs/latest_pipeline.log
-```
-
-## 🎓 Learning Resources
-
-- **Data Engineering**: dbt best practices
-- **Aviation Operations**: TMA management, flight performance
-- **DuckDB**: Column-oriented analytics database
-- **Bruin CLI**: Modern data pipeline orchestration
-
-## 📞 Support
-
-- **Bruin Community**: https://github.com/bruin-data/bruin
-- **Issues**: Open GitHub issues for bugs and questions
-- **Documentation**: See `/bruin-docs.html` for generated documentation
-
----
-
-**Version**: 1.0.0  
-**Last Updated**: 2026-07-11  
-**Maintained By**: Data Engineering Team
+- [Bruin documentation](https://getbruin.com/docs/)
+- [DuckDB documentation](https://duckdb.org/docs/)
+- `pipeline/README.md` for concise pipeline notes
