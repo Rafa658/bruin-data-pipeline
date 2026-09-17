@@ -51,7 +51,6 @@ flights_elapsed_time as (
     select
         id,
         aircraft_type,
-        entry_ts,
         radar_ts,
         aircraft_speed_knots,
         flight_level_hundreds_of_feet::integer as flight_level_hundreds_of_feet,
