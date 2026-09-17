@@ -36,7 +36,8 @@ transformed as (
       ds_registration as flight_id,
       dt_radar::timestamp as radar_ts
   from raw.tb_radar
-  where 1=1
+  where ingestion_date >= ('{{ start_date }}'::timestamp)::date
+    and ingestion_date < ('{{ end_date }}'::timestamp)::date
 ),
 generate_id as (
   select

@@ -77,6 +77,8 @@ transformed as (
           ELSE NULL
       END as kpi08
   from raw.kpi08
+  where ingestion_date >= ('{{ start_date }}'::timestamp)::date
+    and ingestion_date < ('{{ end_date }}'::timestamp)::date
 ),
 sum_transit_times as (
   select
