@@ -131,18 +131,31 @@ poetry install --no-root
    database file. The PostgreSQL connection remains in the pipeline
    configuration but is not used by the current DuckDB SQL assets.
 
-4. Place the source Parquet files in:
+4. The `s3-local` connection is available to Ingestr assets, but DuckDB SQL
+   assets do not automatically inherit separate S3 connections. Create a local
+   persistent DuckDB secret using the same MinIO values from `s3-local`,
+   replacing the placeholders below:
 
-   ```text
-   ~/Documents/bruin/data/
-   ├── kpi08/**/*.parquet
-   └── tb_radar/**/*.parquet
+   ```bash
+   bruin query --connection duckdb-default --query "
+     INSTALL httpfs;
+     LOAD httpfs;
+     CREATE OR REPLACE PERSISTENT SECRET minio_odin (
+       TYPE s3,
+       KEY_ID '<minio-access-key>',
+       SECRET '<minio-secret-key>',
+       ENDPOINT '<minio-host:port>',
+       USE_SSL false,
+       URL_STYLE 'path',
+       SCOPE 's3://odin-data'
+     );
+   "
    ```
 
-   These locations are currently hard-coded in
-   `pipeline/assets/raw/kpi08.sql` and `pipeline/assets/raw/tb_radar.sql`.
-   Update both SQL files if your datasets live elsewhere. The BADA seed is
-   already tracked at `pipeline/assets/seeds/bada_fuel_chart.csv`.
+   The raw assets read `s3://odin-data/kpi08/**/*.parquet` and
+   `s3://odin-data/tb-radar/**/*.parquet`, both Hive-partitioned by
+   `ingestion_date`. The BADA seed is already tracked at
+   `pipeline/assets/seeds/bada_fuel_chart.csv`.
 
 5. Validate the project.
 
@@ -156,22 +169,37 @@ Run from the repository root. Use one worker because concurrent writers can
 contend for the same DuckDB file.
 
 ```bash
-# Run the active DAG and its quality checks
-bruin run pipeline/pipeline.yml --workers 1
+# First load: create the raw tables for the selected interval
+bruin run pipeline/pipeline.yml --start-date 2026-09-15 --end-date 2026-09-16 --full-refresh --workers 1
 
-# Rebuild materialized tables
-bruin run pipeline/pipeline.yml --workers 1 --full-refresh
+# Incremental run or backfill; start is inclusive and end is exclusive
+bruin run pipeline/pipeline.yml --start-date 2026-09-01 --end-date 2026-09-08 --workers 1
 
-# Render one asset's SQL without executing it
-bruin render pipeline/assets/marts/fct_elapsed_time_by_fl.sql
+# Run only the raw layer
+bruin run pipeline/pipeline.yml --start-date 2026-09-15 --end-date 2026-09-16 --workers 1 --selector 'path:assets/raw/*'
+
+# Recreate only the staging views for an interval (raw tables must already exist)
+bruin run pipeline/pipeline.yml --start-date 2026-09-15 --end-date 2026-09-16 --workers 1 --selector 'path:assets/staging/*'
+
+# Render a staging view without executing it
+bruin render pipeline/assets/staging/stg_radar__odin.sql --start-date 2026-09-15 --end-date 2026-09-16
 
 # Inspect a result table
 bruin query --connection duckdb-default \
-  "select * from marts.fct_elapsed_time_by_fl limit 10"
+  --query "select * from marts.fct_elapsed_time_by_fl limit 10"
 ```
 
 Bruin infers dependencies from each asset's `depends` metadata. Column and
 custom checks are declared in the asset headers and run with the pipeline.
+`--full-refresh` replaces each raw table with only the selected interval; use
+it only for the first load or an intentional reset.
+
+The KPI08 and radar staging views retain `ingestion_date` and filter it using
+the same half-open interval: `ingestion_date >= start_date` and
+`ingestion_date < end_date`. A one-day run such as `2026-09-15` through
+`2026-09-16` therefore exposes only the `2026-09-15` ingestion partition.
+Staging views always represent the most recently rendered interval; they do
+not persist previous backfill windows.
 
 ## Main outputs
 
