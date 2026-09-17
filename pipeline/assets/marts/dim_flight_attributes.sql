@@ -45,7 +45,6 @@ select
   arrival_airport,
   flight_id,
   aircraft_type,
-  aircraft_registration,
   flight_date,
   -- derived operational attributes
   runway_validated,
