@@ -1,8 +1,7 @@
 /* @bruin
 
-name: agg.flight_consumption
+name: aggregate.flight_consumption
 type: duckdb.sql
-enabled: false
 tags:
   - aggregate
 
@@ -11,8 +10,9 @@ materialization:
 
 depends:
   - marts.fct_elapsed_time_by_fl
+  - marts.fct_fuel_flow_by_flight_level
   - marts.dim_flight_attributes
-  - intermediate.int_kpi08__filtered_by_forecast_conditions
+  - marts.dim_flight_transit_metrics
   - marts.fct_tma_occupation
 
 @bruin */
@@ -20,46 +20,32 @@ depends:
 with
 consumption_points as (
     select
-        id,
-        dt_radar,
-        nr_speed,
-        fl,
-        avg_rocd,
-        elapsed,
-        fuel_flow
-    from marts.fct_elapsed_time_by_fl
-    where 1=1
+        e.id,
+        e.elapsed,
+        f.fuel_flow
+    from marts.fct_elapsed_time_by_fl e
+    join marts.fct_fuel_flow_by_flight_level f
+        on e.id = f.id
+        and e.radar_ts = f.radar_ts
+        and e.flight_level_hundreds_of_feet = f.flight_level_hundreds_of_feet
+        and e.aircraft_type = f.aircraft_type
 ),
-id_aircraft as (
+flight_metrics as (
     select
-        id,
-        flight_date as date,
-        aircraft_type as aircraft,
-        entry_time as c_time,
-        landing_time as aldt
-    from marts.dim_flight_attributes
-    where 1=1
-),
-kpi08 as (
-    select
-        k.id,
-        k.departure_airport as adep,
-        k.arrival_airport as ades,
-        k.flight_id as fltid,
-        k.aircraft_type as aircraft,
-        k.runway_validated,
-        k.bearing,
-        k.sector,
-        k.flight_date as date,
-        extract(hour from k.entry_time)::int as hour,
-        k.entry_time as c_time,
-        k.landing_time as aldt,
-        k.transito,
-        k.desimp,
-        k.kpi08,
-        k.transit_in_tma_interval
-    from intermediate.int_kpi08__filtered_by_forecast_conditions k
-    where 1=1
+        a.id,
+        a.landing_ts as aldt,
+        a.entry_ts as c_time,
+        a.flight_date as date,
+        extract(hour from a.entry_ts)::int as hour,
+        a.departure_airport as adep,
+        a.aircraft_type as aircraft,
+        a.runway_validated,
+        a.bearing,
+        a.sector,
+        m.kpi08,
+        m.transit_in_tma_interval
+    from marts.dim_flight_attributes a
+    join marts.dim_flight_transit_metrics m using (id)
 ),
 consumption as (
     select
@@ -96,7 +82,7 @@ select
     null as ceiling,
     t.nr_aircraft_in_tma,
     c.consumption_kg
-from kpi08 k
+from flight_metrics k
 left join consumption c using(id)
 left join tma_occupation t
     on k.c_time >= t.dt_valid_from

@@ -1,8 +1,7 @@
 /* @bruin
 
-name: agg.flight_consumption_ml_ready
+name: ml.ml_flight_consumption
 type: duckdb.sql
-enabled: false
 tags:
   - aggregate
 
@@ -10,7 +9,7 @@ materialization:
   type: table
 
 depends:
-  - agg.flight_consumption
+  - aggregate.flight_consumption
 
 @bruin */
 
@@ -21,7 +20,7 @@ base as (
         extract(day   from fc.aldt)::int as day,
         extract(month from fc.aldt)::int as month,
         extract(dow   from fc.aldt)::int as dow
-    from agg.flight_consumption fc
+    from aggregate.flight_consumption fc
     where 1=1
 ),
 percentiles as (
